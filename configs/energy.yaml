@@ -1,0 +1,53 @@
+prepare_model:
+  model_type: 'ResNet' # ['SingleCNN', 'ResNet', 'LoadedModel']
+  tasks: ['energy'] # ['type', 'energy', 'cameradirection', 'skydirection']
+  input_shape: [96, 96, 2] # Shape to determine
+  num_classes: 1 # 2 for type classification, 1 for energy and direction regression
+  temp_dir: '/home/users/v/varenneh/models/energy/temp/' # Place to store temporary model (intermediate steps)
+  CTLearnModel: # For ResNet Models
+    attention_mechanism: null
+    attention_reduction_ratio: null
+
+#  CustomModel: # Only if Loaded Model
+#    model_filename: "ComplexModel"
+#    model_name: "ComplexName"
+
+training_model:
+  TrainCTLearnModel:
+    output_dir: "/home/users/v/varenneh/models/energy/cnn_batch64/" # Where model is saved
+    input_dir_signal: "/home/users/v/varenneh/data/gammas_diffuse/train/" # Gamma values to use
+    file_pattern_signal: ["gamma_*.h5"]
+    model_type: 'LoadedModel' # ['SingleCNN', 'ResNet', 'LoadedModel'] (same as in prepare_model)
+    reco_tasks: 'energy' # ['type', 'energy', 'direction'] (same as in prepare_model)
+    n_epochs: 100
+    batch_size: 64
+    overwrite: true
+    quiet: false
+    percentage_per_epoch: 1.0
+    log_level: "DEBUG"
+#    pruning_model: # Pruning settings to use
+#      initial_sparsity: 0.50
+#      final_sparsity: 0.90
+#      begin_step: 0
+    early_stopping:
+      monitor: 'val_loss'
+      patience: 7
+      verbose: 1
+      min_delta: 0.001
+      restore_best_weights: True
+      start_from_epoch: 5
+    stack_telescope_images: false # True if stereo mode
+    DLImageReader:
+      mode: "mono" # ["mono", "stereo"] (Stereo uses images from multiple telescopes 
+
+  CTLearnModel: 
+    attention_mechanism: null
+    attention_reduction_ratio: null
+    load_model_from: "/home/users/v/varenneh/models/energy/temp/" # Where model is stored
+
+testing_model:
+  data_path: "/home/users/v/varenneh/data/" # Path to data
+  PredictCTLearnModel:
+    stack_telescope_images: false # True if stero mode
+    DLImageReader:
+      mode: "mono" # Same as training
