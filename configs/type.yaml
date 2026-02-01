@@ -1,6 +1,6 @@
 prepare_model:
   model_type: 'ResNet' # ['SingleCNN', 'ResNet', 'LoadedModel']
-  tasks: ['type'] # ['type', 'energy', 'direction']
+  tasks: ['type'] # ['type', 'energy', 'cameradirection', 'skydirection']
   input_shape: [96, 96, 2] # Shape to determine
   num_classes: 2 # 2 for type classification, 1 for energy and direction regression
   temp_dir: '/home/users/v/varenneh/models/type/temp/' # Place to store temporary model (intermediate steps)
