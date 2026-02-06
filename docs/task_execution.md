@@ -36,7 +36,7 @@ prepare_model:
   tasks: ['energy'] # ['type', 'energy', 'cameradirection', 'skydirection']
   input_shape: [96, 96, 2] # Shape to determine
   num_classes: 1 # 2 for type classification, 1 for energy and direction regression
-  temp_dir: '/home/users/v/varenneh/models/energy/temp/' # Place to store temporary model (intermediate steps)
+  temp_dir: '{models_path}/models/energy/temp/' # Place to store temporary model (intermediate steps)
   CTLearnModel: # For ResNet Models
     attention_mechanism: null
     attention_reduction_ratio: null
@@ -47,8 +47,8 @@ The second element that can be modified is related to the training process. You 
 ```bash
 training_model:
   TrainCTLearnModel:
-    output_dir: "/home/users/v/varenneh/models/energy/cnn_batch64/" # Where model is saved
-    input_dir_signal: "/home/users/v/varenneh/data/gammas_diffuse/train/" # Gamma values to use
+    output_dir: "{models_path}/models/energy/cnn_batch64/" # Where model is saved
+    input_dir_signal: "{data_path}/gammas_diffuse/train/" # Gamma values to use
     file_pattern_signal: ["gamma_*.h5"]
     model_type: 'LoadedModel' # ['SingleCNN', 'ResNet', 'LoadedModel'] (same as in prepare_model)
     reco_tasks: 'energy' # ['type', 'energy', 'direction'] (same as in prepare_model)
@@ -76,14 +76,14 @@ training_model:
   CTLearnModel: 
     attention_mechanism: null
     attention_reduction_ratio: null
-    load_model_from: "/home/users/v/varenneh/models/energy/temp/" # Where model is stored
+    load_model_from: {temp_model_path} # Where model is stored
 ```
 
 There is a last step dedicated to the testing part with the testing data referenced. Also there is the mode used for CTLearn compliance purposes.
 
 ```bash
 testing_model:
-  data_path: "/home/users/v/varenneh/data/" # Path to data
+  data_path: {data_path}  # Path to data
   PredictCTLearnModel:
     stack_telescope_images: false # True if stero mode
     DLImageReader:
@@ -120,10 +120,9 @@ Then, you need to provide your python script with the arguments required so it c
 apptainer exec --nv \
   --bind /usr/local/cuda/targets/x86_64-linux:/usr/local/cuda/targets/x86_64-linux \
   --bind /usr/local/cuda/lib64:/usr/local/cuda/lib64 \
-  --bind /srv/beegfs/scratch/shares/upeguipa/SST1M \
   ctlearnenv.sif bash -c '
 export LD_LIBRARY_PATH="/usr/local/cuda/targets/x86_64-linux/lib:/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}"
-python3 scripts/train_model.py --yaml_file /home/users/v/varenneh/configs/type_config.yaml
+python3 scripts/train_model.py --yaml_file {config_path}
 '
 ```
 
