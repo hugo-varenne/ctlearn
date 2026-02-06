@@ -1,10 +1,10 @@
 prepare_model:
   model_type: 'ResNet' # ['SingleCNN', 'ResNet', 'LoadedModel']
-  tasks: ['skydirection'] # ['type', 'energy', 'direction']
-  input_shape: [96, 96, 2] # Shape to determine
+  tasks: ['skydirection'] # ['type', 'energy', 'cameradirection', 'skydirection']
+  input_shape: [96, 96, 2] # No change
   num_classes: 1 # 2 for type classification, 1 for energy and direction regression
   temp_dir: '/home/users/v/varenneh/models/skydirection/temp/' # Place to store temporary model (intermediate steps)
-  CTLearnModel:
+  CTLearnModel: # For non-resnet models to make it work requires values to be null
     attention_mechanism: null
     attention_reduction_ratio: null
 
@@ -16,20 +16,20 @@ training_model:
   TrainCTLearnModel:
     output_dir: "/home/users/v/varenneh/models/skydirection/resnet/" # Where model is saved
     input_dir_signal: "/srv/beegfs/scratch/shares/upeguipa/SST1M/data/gammas_diffuse/reduce_train/" # Gamma values to use
-    file_pattern_signal: ["gamma_*.h5"]
+    file_pattern_signal: ["gamma_*.h5"] # Pattern for signal files
     model_type: 'LoadedModel' # ['SingleCNN', 'ResNet', 'LoadedModel'] (same as in prepare_model)
-    reco_tasks: 'skydirection' # ['type', 'energy', 'direction'] (same as in prepare_model)
+    reco_tasks: 'skydirection' # ['type', 'energy', 'cameradirection', 'skydirection'] (same as in prepare_model)
     n_epochs: 100
     batch_size: 512
-    overwrite: true
-    quiet: false
-    percentage_per_epoch: 0.05
-    log_level: "DEBUG"
+    overwrite: true # No changes
+    quiet: false # No changes
+    percentage_per_epoch: 0.05 # Percentage of batches taken in account per epoch
+    log_level: "DEBUG" # No changes
 #    pruning_model: # Pruning settings to use
 #      initial_sparsity: 0.50
 #      final_sparsity: 0.90
 #      begin_step: 0
-    early_stopping:
+    early_stopping: # early-stopping parameters
       monitor: 'val_loss'
       patience: 7
       verbose: 1
@@ -40,7 +40,7 @@ training_model:
     DLImageReader:
       mode: "stereo" # Only stereo for skydirection (cameradirection for mono)
 
-  CTLearnModel: 
+  CTLearnModel: # For non-resnet models to make it work requires values to be null
     attention_mechanism: null
     attention_reduction_ratio: null
     load_model_from: "/home/users/v/varenneh/models/skydirection/temp/" # Where model is stored
