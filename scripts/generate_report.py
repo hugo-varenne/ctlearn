@@ -320,11 +320,11 @@ class Report:
                 <div class="grid">
                     <div class="col">
                         <p class="metric"><strong>MDAE :</strong> {np.mean(directional_errors):.4f}</p>
-                        <p class="metric"><strong>MAAE Circular :</strong> {np.mean(np.minimum(diff, 360-diff)):.4f}</p>
+                        <p class="metric"><strong>MAE - Circular :</strong> {np.mean(np.minimum(diff, 360-diff)):.4f}</p>
                     </div>
                     <div class="col">
                         <p class="metric"><strong>RMSDE :</strong> {np.sqrt(np.mean(directional_errors**2)):.4f}</p>
-                        <p class="metric"><strong>MAAE Linear :</strong> {np.mean(diff):.4f}</p>
+                        <p class="metric"><strong>MAE - Linear :</strong> {np.mean(diff):.4f}</p>
                     </div>
                 </div>
                 """            
@@ -486,7 +486,7 @@ class Report:
             # Prepare graphic
             disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
             disp.plot(cmap=plt.cm.Blues)
-            plt.title('Confusion Matrix')
+            plt.title('Confusion Matrix', fontsize=20, fontweight=500)
             plt.ylabel("Ground truth")
             plt.xlabel("Predictions")
             plt.xticks(np.arange(-0.5, cm.shape[1], 0.5), minor=True)
@@ -548,7 +548,7 @@ class Report:
             # Prepare graphic
             plt.plot(mean_predicted_value, fraction_of_positives, label=f"{self.model_type}")
             plt.plot([0, 1], [0, 1], "--", label="Best Calibration Curve", color="black")       
-            plt.title("Probability Calibration Curve")
+            plt.title("Probability Calibration Curve", fontsize=20, fontweight=500)
             plt.xlabel("Probability [%]")
             plt.ylabel("Fraction of positives [%]")
             plt.legend()
@@ -890,7 +890,7 @@ class Report:
                                                az_pred, alt_pred)
 
             # Define degree threshold    
-            thresholds = np.arange(1, 21)
+            thresholds = np.arange(0.00, 3.00, 0.10)
 
             # Provide accuracy percentages for each threshold
             percentages = []
@@ -907,9 +907,9 @@ class Report:
             # Prepare graph
             plt.xlabel("Threshold [deg]")
             plt.ylabel("Percent within threshold [%]")
-            plt.title("Degree Performance Curve (Camera)", fontsize=20, fontweight=500)
-            ax = plt.gca()
-            ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+            plt.title("Degree Performance Curve", fontsize=20, fontweight=500)
+            x_ticks = np.arange(0, 3.01, 0.5)
+            plt.xticks(x_ticks)
             plt.grid(True)
             plt.tight_layout()
             
@@ -967,7 +967,7 @@ class Report:
                 cbar.set_label("Counts")
 
             # Prepare global graph
-            fig.suptitle("Altitude-Azimuth (Camera) Distribution", fontsize=20, fontweight=500)
+            fig.suptitle("Alt-Az Distribution", fontsize=20, fontweight=500)
             plt.tight_layout()
 
             # Convert image to base64 (for rapid integration in html)
@@ -1038,7 +1038,7 @@ class Report:
             plt.xscale("log")
             plt.xlabel("True Energy [TeV]")
             plt.ylabel("Angular resolution [deg]")
-            plt.title("Angular Resolution (Camera)", fontsize=20, fontweight=500)
+            plt.title("Angular Resolution", fontsize=20, fontweight=500)
             plt.grid(True, which="both", ls="--", alpha=0.5)
             plt.legend()
 
@@ -1129,7 +1129,7 @@ class Report:
             plt.xscale("log")
             plt.xlabel("True Energy [TeV]")
             plt.ylabel("Bias / Std [deg]")
-            plt.title("Angular Bias and Standard deviation (Camera)", fontsize=20, fontweight=500)
+            plt.title("Angular Bias and Standard deviation", fontsize=20, fontweight=500)
             plt.grid(True, which="both", ls="--", alpha=0.5)
             plt.legend()
             plt.tight_layout()

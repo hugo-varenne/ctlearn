@@ -58,7 +58,7 @@ class Report:
                 
         # Procedure to execute to build the report
         self.create_experiment_folder()
-        self.load_models(self.task_folder)
+        self.load_models()
         self.training_plot()
         self.get_prediction_data(task)
 
@@ -75,13 +75,21 @@ class Report:
         self.rank_perf_metrics()
         self.build_report()
         
-    def load_models(self, model_path):
+    def load_models(self):
         # Load models for a specific task
         self.model_list = {}
-        for model in os.listdir(model_path):
-            if model != "temp":
-                model_file = os.path.join(model_path, model, "ctlearn_model.cpk")
-                self.model_list[model] = tf.keras.models.load_model(model_file)
+        for element in os.listdir(self.task_folder):
+            # Verify that element is a working model
+            if os.path.isdir(os.path.join(self.task_folder, element)) and element != "temp":
+                model_file = os.path.join(self.task_folder, element, "ctlearn_model.cpk")
+                predict_file = os.path.join(self.task_folder, element, "predict")
+                # Verify if model is trained and tested
+                if os.path.exists(model_file) and os.path.exists(predict_file):
+                    self.model_list[element] = tf.keras.models.load_model(model_file)
+                else: 
+                    print(f"⚠️ Model {element} ignored because training/testing incomplete !")
+            else:
+                print(f"⚠️ {element} is not a model directory !")
 
     def build_report(self):            
         html_template = f"""
@@ -218,8 +226,8 @@ class Report:
                 # Get color for matching line
                 color = colors[count % len(colors)]
                 # Plot training and validation loss
-                plt.plot(loss["epoch"], loss["loss"], linestyle="--", color=color, label="Training Loss")
-                plt.plot(loss["epoch"], loss["val_loss"], color=color,  label="Validation Loss")
+                plt.plot(loss["epoch"], loss["loss"], linestyle="--", color=color, label=f"Training Loss - {model}")
+                plt.plot(loss["epoch"], loss["val_loss"], color=color,  label=f"Validation Loss - {model}")
                 count += 1
             else: 
                 print(f"No training performed for the model {model}")
@@ -244,7 +252,8 @@ class Report:
     
     def get_prediction_data(self, task):
         self.predictions = {}
-        for model in os.listdir(self.task_folder):
+        model_names = list(self.model_list.keys())
+        for model in model_names:
             # Get model predictions
             prediction_directory = os.path.join(self.task_folder, model, "predict")
             
@@ -306,49 +315,82 @@ class Report:
             if os.path.exists(metrics_path):
                 with open(metrics_path, "r") as file:
                     metrics = json.load(file)
-                if "inference_ms" in metrics and "training_ms" in metrics:
-                    metrics["inference_per_events"] = metrics["inference_ms"]/metrics["testing_events"]
+                testing_ms = pd.to_numeric(metrics.get("testing_ms"), errors="coerce")
+                testing_events = pd.to_numeric(metrics.get("testing_events"), errors="coerce")   
+                if pd.notna(testing_ms) and pd.notna(testing_events) and testing_events > 0:
+                    metrics["inference_per_events"] = testing_ms / testing_events
+                else:
+                    metrics["inference_per_events"] = np.nan
                 metrics["model"] = model
                 rows.append(metrics)
+                
         self.model_metrics = pd.DataFrame(rows)
 
-        float_cols = self.model_metrics.select_dtypes(include=["float"]).columns
-        self.model_metrics[float_cols] = self.model_metrics[float_cols].applymap(
-            lambda x: ('{:.3f}'.format(x)).rstrip('0').rstrip('.')
-        )
-
-        ranking_df = self.model_metrics[["model"]]
+        # Ensure all ranking metrics exist and are numeric
         for metric in ranking_metrics:
             if metric in self.model_metrics.columns:
-                ranking_df[metric] = self.model_metrics[metric].rank(ascending=True, method="min", na_option='bottom').astype(int)
+                self.model_metrics[metric] = (
+                self.model_metrics[metric]
+                .replace(r"^\s*$", np.nan, regex=True)
+                .pipe(pd.to_numeric, errors="coerce")
+            )
+
+        ranking_df = self.model_metrics[["model"]].copy()
+        for metric in ranking_metrics:
+            if metric not in self.model_metrics.columns:
+                continue
+            metrics = self.model_metrics[metric]
+            metric_ranks = pd.Series(pd.NA, index=metrics.index, dtype="Int64")
+            mask = metrics.notna()
+            metric_ranks.loc[mask] = (
+                metrics.loc[mask].rank(ascending=True, method="min").astype("Int64")
+            )
+            ranking_df[metric] = metric_ranks
         
         ranking_df = ranking_df.set_index("model")
 
-        # Catch number of events used
-        training_events_list = self.model_metrics["training_events"]
-        if training_events_list.nunique() == 1:
-            self.training_events = training_events_list.iloc[0]
-        else:
-            self.training_events = f"approximatively {training_events_list.mean():.0f} (Not the same for each model)"
+        float_cols = ranking_df.select_dtypes(include=["float"]).columns
+        ranking_df[float_cols] = ranking_df[float_cols].applymap(
+        lambda x: f"{x:.3f}".rstrip("0").rstrip(".") if pd.notna(x) else "-"
+        )   
         
-        testing_events_list = self.model_metrics["testing_events"]
-        if testing_events_list.nunique() == 1:
-            self.testing_events = testing_events_list.iloc[0]
+        # Catch number of events used
+        training_events_list = pd.to_numeric(self.model_metrics.get("training_events"), errors="coerce").dropna()
+        if training_events_list.empty:    
+            self.training_events = "Unknown"
+        elif training_events_list.nunique() == 1:
+            self.training_events = int(training_events_list.iloc[0])
         else:
-            self.testing_events = f"approximatively {testing_events_list.mean():.0f} (Not the same for each model)"
+            self.training_events = f"approximatively {int(training_events_list.mean())} (Not the same for each model)"
+        
+        testing_events_list = pd.to_numeric(self.model_metrics.get("testing_events"), errors="coerce").dropna()
+        if testing_events_list.empty:    
+            self.testing_events = "Unknown"
+        elif testing_events_list.nunique() == 1:
+            self.testing_events = int(testing_events_list.iloc[0])
+        else:
+            self.testing_events = f"approximatively {int(testing_events_list.mean())} (Not the same for each model)"
 
-        metrics_html = tabulate(
-            self.model_metrics.drop(["training_events", "testing_events"], axis=1).set_index("model"),
-            headers="keys",
-            tablefmt="html",
-            colalign=["center"] * len(self.model_metrics)
+        metrics_table = (
+            self.model_metrics
+            .drop(columns=["training_events", "testing_events"], errors="ignore")
+            .set_index("model")
         )
         
-        ranking_html = tabulate(
-            ranking_df,
+        metrics_html = tabulate(
+            metrics_table,
             headers="keys",
             tablefmt="html",
-            colalign=["center"] * len(ranking_df)
+            colalign=["center"] * len(metrics_table.columns)
+        )
+
+        ranking_display = ranking_df.astype(object).where(pd.notna(ranking_df), "-")
+        print(ranking_display)
+        ranking_html = tabulate(
+            ranking_display,
+            headers="keys",
+            tablefmt="html",
+            colalign=["center"] * len(ranking_df.columns)
         )
         
         self.model_metrics_template = f"""
@@ -519,7 +561,7 @@ class Report:
             // Color rank cells
             document.querySelectorAll(".metrics-component td").forEach(td => {{
                 const v = td.innerText.trim();
-                if (v === "1.0") td.classList.add("rank-1");
+                if (v === "1") td.classList.add("rank-1");
             }});
             </script>
             
@@ -692,7 +734,7 @@ class Report:
                 
             # Prepare graphic
             plt.plot([0, 1], [0, 1], "--", label="Best Calibration Curve", color="black")       
-            plt.title("Probability Calibration Curve")
+            plt.title("Probability Calibration Curve", fontsize=20, fontweight=500)
             plt.xlabel("Probability [%]")
             plt.ylabel("Fraction of positives [%]")
             plt.legend()
@@ -1092,7 +1134,7 @@ class Report:
                                                    az_pred, alt_pred)
     
                 # Define degree threshold    
-                thresholds = np.arange(1, 21)
+                thresholds = np.arange(0.00, 3.00, 0.10)
     
                 # Provide accuracy percentages for each threshold
                 percentages = []
@@ -1108,9 +1150,9 @@ class Report:
             # Prepare graph
             plt.xlabel("Threshold (degrees)")
             plt.ylabel("Percent within threshold (%)")
-            plt.title("Degree Performance Curve (Camera)", fontsize=20, fontweight=500)
-            ax = plt.gca()
-            ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+            plt.title("Degree Performance Curve", fontsize=20, fontweight=500)
+            x_ticks = np.arange(0, 3.01, 0.5)
+            plt.xticks(x_ticks)
             plt.grid(True)
             plt.tight_layout()
             
@@ -1177,7 +1219,7 @@ class Report:
                 axes[j].axis("off")
             
             # Prepare global graph
-            fig.suptitle("Altitude-Azimuth (Camera) Distribution", fontsize=20, fontweight=500)
+            fig.suptitle("Alt-Az Distribution", fontsize=20, fontweight=500)
             plt.tight_layout()
 
             # Convert image to base64 (for rapid integration in html)
@@ -1252,7 +1294,7 @@ class Report:
             plt.xscale("log")
             plt.xlabel("True Energy [TeV]")
             plt.ylabel("Angular resolution [deg]")
-            plt.title("Angular Resolution (Camera)", fontsize=20, fontweight=500)
+            plt.title("Angular Resolution", fontsize=20, fontweight=500)
             plt.grid(True, which="both", ls="--", alpha=0.5)
             plt.legend()
             plt.tight_layout()
@@ -1361,7 +1403,7 @@ class Report:
                 axes[j].axis("off")
 
             # Prepare global graphic
-            fig.suptitle(f"Angular Bias and Standard deviation (Camera)", fontsize=20, fontweight=500)
+            fig.suptitle(f"Angular Bias and Standard deviation", fontsize=20, fontweight=500)
             plt.tight_layout()
             
             # Convert image to base64 (for rapid integration in html)
